@@ -5,7 +5,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ghcr.io/hexatare/posthog-railway-template
+  IMAGE_PREFIX: ghcr.io/bonkboykz/posthog-railway-template
   POSTHOG_APP_TAG: 9373a2b55081d3e711ad58bca060a6a9ab5d41a5
 
 jobs:
@@ -105,29 +105,31 @@ jobs:
           EOF
           chmod +x compose/temporal-django-worker
 
-          # write wait script
-          cat > compose/wait <<EOF
+          # write wait script: hosts come from env (Railway has no short compose names)
+          cat > compose/wait <<'EOF'
           #!/usr/bin/env python3
-
+          import os
           import socket
           import time
 
-          def loop():
-              print("Waiting for ClickHouse and Postgres to be ready")
-              try:
-                  with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                      s.connect(('clickhouse', 9000))
-                  print("Clickhouse is ready")
-                  with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                      s.connect(('db', 5432))
-                  print("Postgres is ready")
-              except ConnectionRefusedError as e:
-                  time.sleep(5)
-                  loop()
-
-          loop()
+          targets = [
+              (os.environ.get("CLICKHOUSE_HOST", "clickhouse"), int(os.environ.get("CLICKHOUSE_TCP_PORT", "9000"))),
+              (os.environ.get("PGHOST", "db"), int(os.environ.get("PGPORT", "5432"))),
+          ]
+          for host, port in targets:
+              print(f"Waiting for {host}:{port}", flush=True)
+              while True:
+                  try:
+                      socket.create_connection((host, port), timeout=5).close()
+                      print(f"{host}:{port} is ready", flush=True)
+                      break
+                  except OSError:
+                      time.sleep(5)
           EOF
           chmod +x compose/wait
+
+      - name: Compute image tags
+        run: echo "FORK_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -146,5 +148,8 @@ jobs:
             POSTHOG_APP_TAG=${{ env.POSTHOG_APP_TAG }}
           context: .
           file: ${{ matrix.dockerfile }}
-          tags: ${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:latest
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:latest
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:${{ env.POSTHOG_APP_TAG }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:${{ env.FORK_SHA }}
           push: true
