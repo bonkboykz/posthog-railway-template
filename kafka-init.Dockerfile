@@ -1,4 +1,4 @@
-FROM docker.redpanda.com/redpandadata/redpanda:v25.1.9
+FROM redpandadata/redpanda:v25.1.9
 
 COPY --chmod=755 <<EOF /entrypoint.sh
 #!/bin/bash
