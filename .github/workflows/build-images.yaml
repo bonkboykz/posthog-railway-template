@@ -17,6 +17,7 @@ jobs:
       packages: write
 
     strategy:
+      fail-fast: false
       matrix:
         include:
           - image: capture
@@ -37,8 +38,6 @@ jobs:
             dockerfile: ./kafka.Dockerfile
           - image: livestream
             dockerfile: ./livestream.Dockerfile
-          - image: objectstorage
-            dockerfile: ./objectstorage.Dockerfile
           - image: plugins
             dockerfile: ./plugins.Dockerfile
           - image: property-defs-rs
